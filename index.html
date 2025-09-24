@@ -94,7 +94,16 @@
           <button class="btn secondary" id="uploadBtn">选择图片</button>
           <input id="fileInput" type="file" accept="image/*" hidden />
         </div>
-        <button class="btn" id="generateBtn">一键生成</button>
+        
+<!-- NEW: 返佣链接输入 -->
+<div class="field" id="ref-link-field" style="margin-top:10px;">
+  <label for="ref-link-input" style="display:block;margin-bottom:6px;">输入你的返佣链接（可选）</label>
+  <input id="ref-link-input" type="url" inputmode="url"
+         placeholder="https://… （留空则用默认返佣链接）"
+         style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;"/>
+  <small id="ref-link-hint" style="display:none;color:#e53935;">链接格式不正确，将使用默认链接</small>
+</div>
+<button class="btn" id="generateBtn">一键生成</button>
       </div>
       <div class="footer-note">体验被何一亲自邀请的感觉！</div>
     </section>
@@ -335,5 +344,111 @@
     });
 
   </script>
+
+<!-- NEW: Referral Link logic -->
+<script>
+(function(){
+  const DEFAULT_REF_LINK = "https://forms.gle/F2fMwSzh6tHcLNXr8";
+  let userRefLink = "";
+
+  function isValidHttpUrl(u) {
+    try {
+      const url = new URL(u);
+      return url.protocol === "http:" || url.protocol === "https:";
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function getReferralLink() {
+    return (userRefLink && isValidHttpUrl(userRefLink)) ? userRefLink : DEFAULT_REF_LINK;
+  }
+
+  function storeRefLinkFromInput() {
+    const refInputEl = document.querySelector("#ref-link-input");
+    const refHintEl  = document.querySelector("#ref-link-hint");
+    let raw = (refInputEl && refInputEl.value || "").trim();
+    if (raw && isValidHttpUrl(raw)) {
+      userRefLink = raw;
+      if (refHintEl) refHintEl.style.display = "none";
+      try { localStorage.setItem("refLink", userRefLink); } catch(_) {}
+    } else {
+      userRefLink = "";
+      if (raw && refHintEl) refHintEl.style.display = "inline";
+      try { localStorage.removeItem("refLink"); } catch(_) {}
+    }
+  }
+
+  // On load, prefill saved link
+  document.addEventListener("DOMContentLoaded", function(){
+    try {
+      const saved = localStorage.getItem("refLink");
+      if (saved && document.querySelector("#ref-link-input")) {
+        document.querySelector("#ref-link-input").value = saved;
+        userRefLink = saved;
+      }
+    } catch(_) {}
+
+    // Intercept click on a button whose text includes "一键生成" to store link just-in-time
+    document.addEventListener("click", function(e){
+      const t = e.target;
+      if (!t) return;
+      const isBtn = t.matches && (t.matches("button, a, .btn") || t.closest && t.closest("button, a, .btn"));
+      const node = isBtn ? (t.matches("button, a, .btn") ? t : t.closest("button, a, .btn")) : null;
+      if (node && (node.textContent || "").includes("一键生成")) {
+        storeRefLinkFromInput();
+      }
+    }, true);
+
+    // Fallback: if a default referral link appears in the chat messages, replace it with user's link
+    // This prevents double replies and works even if original JS didn't expose a hook.
+    const msgs = document.querySelector("#msgs, .msgs");
+    if (msgs) {
+      const replaceLinkInNode = (node) => {
+        if (!node) return;
+        const myLink = getReferralLink();
+        if (myLink && myLink !== DEFAULT_REF_LINK) {
+          // Replace occurrences in text nodes and anchors
+          const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, null);
+          const texts = [];
+          while (walker.nextNode()) texts.push(walker.currentNode);
+          texts.forEach(n => {
+            if (n.nodeValue && n.nodeValue.includes(DEFAULT_REF_LINK)) {
+              n.nodeValue = n.nodeValue.replaceAll(DEFAULT_REF_LINK, myLink);
+            }
+          });
+          // Replace anchors' hrefs
+          node.querySelectorAll && node.querySelectorAll("a").forEach(a => {
+            try {
+              if ((a.href || "").includes(DEFAULT_REF_LINK)) {
+                a.href = myLink;
+                if (!a.textContent.trim()) a.textContent = myLink;
+              }
+              if ((a.textContent || "").includes(DEFAULT_REF_LINK)) {
+                a.textContent = a.textContent.replaceAll(DEFAULT_REF_LINK, myLink);
+              }
+            } catch(_) {}
+          });
+        }
+      };
+
+      // Initial sweep
+      replaceLinkInNode(msgs);
+
+      // Observe future message additions
+      const obs = new MutationObserver(muts => {
+        muts.forEach(m => {
+          m.addedNodes && m.addedNodes.forEach(node => replaceLinkInNode(node));
+        });
+      });
+      obs.observe(msgs, { childList: true, subtree: true });
+    }
+  });
+
+  // OPTIONAL: expose getReferralLink() globally if other scripts want to consume it
+  try { window.getReferralLink = getReferralLink; } catch(_) {}
+})();
+</script>
+
 </body>
 </html>

@@ -206,8 +206,8 @@
       if(!v) return;
       appendMsg('me', v);
       input.value = '';
-      if(/(返佣|返点|rebate)/i.test(v)){
-        setTimeout(()=> appendMsg('them', '点击链接申请DEX返佣：https://forms.gle/F2fMwSzh6tHcLNXr8'), 600);
+      if(/(返佣|返点|rebate|试|好的|收到)/i.test(v)){
+        setTimeout(()=> appendMsg('them', '快来点击链接开通返佣资格：https://forms.gle/F2fMwSzh6tHcLNXr8'), 600);
       }
     }
     function appendMsg(who, text){
